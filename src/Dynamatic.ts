@@ -1,4 +1,5 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBClient, DynamoDBClientConfig } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 
 export type KeyValue = string | number;
 
@@ -33,17 +34,17 @@ const KEY_PREFIX = '#'
 const VALUE_PREFIX = ':'
 
 export class Dynamatic {
-  public ddb: DocumentClient;
+  public ddb: DynamoDBDocument;
 
-  constructor(protected schema: TableSchema, options?: DocumentClient.DocumentClientOptions & { documentClient?: DocumentClient }) {
-    this.ddb = options?.documentClient || new DocumentClient(options);
+  constructor(protected schema: TableSchema, options?: DynamoDBClientConfig & { documentClient?: DynamoDBDocument }) {
+    this.ddb = options?.documentClient || DynamoDBDocument.from(new DynamoDBClient(options));
   }
 
   buildKeyConditionExpression(keysMap: Record<string, KeyConditions>) {
     const keys = Object.entries(keysMap);
     return keys.map(([keyName, comparison]) => {
-      const [keyCondition, value] = Object.entries(comparison)[0];
-      return `${KEY_PREFIX}${keyName} ${keyCondition} ${VALUE_PREFIX}${value}`;
+      const keyCondition = Object.keys(comparison)[0];
+      return `${KEY_PREFIX}${keyName} ${keyCondition} ${VALUE_PREFIX}${keyName}`;
     }).join(' AND ')
   }
 
@@ -57,11 +58,11 @@ export class Dynamatic {
   }
 
   buildExpressionAttributeValues(keysMap: Record<string, KeyConditions>) {
-    return Object.values(keysMap).reduce((expressionAttributeNames, comparison) => {
+    return Object.entries(keysMap).reduce((expressionAttributeNames, [keyName, comparison]) => {
       const value = Object.values(comparison)[0];
       return {
         ...expressionAttributeNames,
-        [`${VALUE_PREFIX}${value}`]: value
+        [`${VALUE_PREFIX}${keyName}`]: value
       };
     }, {});
   }
@@ -75,7 +76,7 @@ export class Dynamatic {
       KeyConditionExpression: this.buildKeyConditionExpression(keyConditions),
       ExpressionAttributeNames: this.buildExpressionAttributeNames(keyConditions),
       ExpressionAttributeValues: this.buildExpressionAttributeValues(keyConditions)
-    }).promise();
+    });
 
     return {
       items: response.Items,
@@ -90,7 +91,7 @@ export class Dynamatic {
     const { Item } = await this.ddb.get({
       TableName: this.schema.tableName,
       Key: key
-    }).promise();
+    });
 
     return Item ? Item as T : null;
   }
@@ -99,14 +100,14 @@ export class Dynamatic {
     await this.ddb.put({
       TableName: this.schema.tableName,
       Item: item
-    }).promise();
+    });
   }
 
   async delete(key: Record<string, KeyValue>): Promise<void> {
     await this.ddb.delete({
       TableName: this.schema.tableName,
       Key: key
-    }).promise();
+    });
   }
   // TODO: add update and batch operations
 }

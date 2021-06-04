@@ -25,10 +25,14 @@ export interface QueryOptions {
 }
 
 export enum KeyComparison {
-  EQUALS = '='
+  EQUALS = '=',
+  LESS_THAN = '<',
+  LESS_THAN_OR_EQUALS_TO = '<=',
+  GREATER_THAN = '>',
+  GREATER_THAN_OR_EQUAL_TO = '>=',
 }
 
-export type KeyConditions = Record<KeyComparison, KeyValue>;
+export type KeyConditions = { [key in KeyComparison]?: KeyValue };
 
 const KEY_PREFIX = '#'
 const VALUE_PREFIX = ':'

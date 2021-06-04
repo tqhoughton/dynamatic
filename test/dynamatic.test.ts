@@ -21,7 +21,7 @@ describe('constructor', () => {
 })
 
 describe('query', () => {
-  test('Calls DynamoDB with valid arguments', async () => {
+  test('Calls DynamoDB with valid arguments for single hash key', async () => {
     const mockDynamoClient: DynamoDBDocument = {
       query: jest.fn().mockResolvedValue({
         Items: []
@@ -36,6 +36,63 @@ describe('query', () => {
     expect(mockDynamoClient.query).toHaveBeenCalledWith(expect.objectContaining({
       TableName: tableSchema.tableName,
       KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: {
+        '#id': 'id'
+      },
+      ExpressionAttributeValues: {
+        ':id': 'hi'
+      }
+    }));
+  });
+
+  test('Calls DynamoDB with valid arguments for hash key + sort key', async () => {
+    const mockDynamoClient: DynamoDBDocument = {
+      query: jest.fn().mockResolvedValue({
+        Items: []
+      })
+    } as any;
+    
+    const dynamatic = new Dynamatic(tableSchema, { documentClient: mockDynamoClient });
+
+    const { items } = await dynamatic.query({ keyConditions: { id: { [KeyComparison.EQUALS]: 'hi' }, type: { [KeyComparison.EQUALS]: 'foo' } }});
+
+    expect(items.length).toEqual(0);
+    expect(mockDynamoClient.query).toHaveBeenCalledWith(expect.objectContaining({
+      TableName: tableSchema.tableName,
+      KeyConditionExpression: '#id = :id AND #type = :type',
+      ExpressionAttributeNames: {
+        '#id': 'id',
+        '#type': 'type'
+      },
+      ExpressionAttributeValues: {
+        ':id': 'hi',
+        ':type': 'foo'
+      }
+    }));
+  });
+
+  const cases = [
+    [KeyComparison.GREATER_THAN, '>'],
+    [KeyComparison.LESS_THAN, '<'],
+    [KeyComparison.GREATER_THAN_OR_EQUAL_TO, '>='],
+    [KeyComparison.LESS_THAN_OR_EQUALS_TO, '<=']
+  ]
+
+  test.each(cases)('Handles comparison for %s', async (comparison, representation) => {
+    const mockDynamoClient: DynamoDBDocument = {
+      query: jest.fn().mockResolvedValue({
+        Items: []
+      })
+    } as any;
+    
+    const dynamatic = new Dynamatic(tableSchema, { documentClient: mockDynamoClient });
+
+    const { items } = await dynamatic.query({ keyConditions: { id: { [comparison]: 'hi' }}});
+
+    expect(items.length).toEqual(0);
+    expect(mockDynamoClient.query).toHaveBeenCalledWith(expect.objectContaining({
+      TableName: tableSchema.tableName,
+      KeyConditionExpression: `#id ${representation} :id`,
       ExpressionAttributeNames: {
         '#id': 'id'
       },
